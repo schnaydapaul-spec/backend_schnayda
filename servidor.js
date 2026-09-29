@@ -9,6 +9,7 @@
 // ============================================================
 
 const express = require('express');
+const { DatabaseSync } = require('node:sqlite');
 const app = express();
 
 // Faz o Express entender JSON no corpo das requisicoes
@@ -22,13 +23,6 @@ nome TEXT NOT NULL,
 duracao INTEGER NOT NULL
 )
 `);
-
-
-// ------------------------------------------------------------
-// Os dados moram aqui, na memoria. Somem quando o servidor cai.
-// (Na Aula 03 isso vira banco de dados.)
-// ------------------------------------------------------------
-
 
 
 // ------------------------------------------------------------
@@ -61,7 +55,7 @@ app.get('/treinos', (req, res) => {
 // ------------------------------------------------------------
 app.get('/treinos/:id', (req, res) => {
   const id = Number(req.params.id);
-  const treino = treinos.find((t) => t.id === id);
+  const treino = db.prepare('SELECT * FROM treinos WHERE id = ?').get(id);
   if (treino === undefined) {
     return res.status(404).json({ erro: 'Treino nao encontrado.' });
   }
@@ -78,13 +72,10 @@ app.post('/treinos', (req, res) => {
   if (erro !== null) {
     return res.status(400).json({ erro: erro });
   }
-  const treino = {
-    id: proximoId,
-    nome: req.body.nome,
-    duracao: req.body.duracao
-  };
-  proximoId = proximoId + 1;
-  treinos.push(treino);
+  const resultado = db.prepare('INSERT INTO treinos (nome, duracao) VALUES (?, ?)')
+    .run(req.body.nome, req.body.duracao);
+  const treino = db.prepare('SELECT * FROM treinos WHERE id = ?')
+    .get(resultado.lastInsertRowid);
   res.status(201).json(treino);
 });
 
@@ -113,11 +104,10 @@ res.status(200).json(atualizado);
 // ------------------------------------------------------------
 app.delete('/treinos/:id', (req, res) => {
   const id = Number(req.params.id);
-  const posicao = treinos.findIndex((t) => t.id === id);
-  if (posicao === -1) {
+  const resultado = db.prepare('DELETE FROM treinos WHERE id = ?').run(id);
+  if (resultado.changes === 0) {
     return res.status(404).json({ erro: 'Treino nao encontrado.' });
   }
-  treinos.splice(posicao, 1);
   res.status(204).end();
 });
 
